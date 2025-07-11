@@ -97,7 +97,7 @@ export default function DashboardPage() {
   }, [status, router])
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: "/login" })
+    await signOut({ callbackUrl: "/" })
   }
 
   const handleEditDesign = (id: string) => {
