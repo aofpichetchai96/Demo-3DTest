@@ -1,5 +1,3 @@
-'use server'
-
 import { db } from './db'
 import { modelConfigurations, viewingPresets, type ModelConfiguration, type NewModelConfiguration, type ViewingPreset, type NewViewingPreset } from './schema'
 import { eq, and } from 'drizzle-orm'

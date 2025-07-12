@@ -1,6 +1,6 @@
 import { config } from 'dotenv'
 import { db, sql } from './db'
-import { users, collections } from './schema'
+import { users, collections, modelConfigurations } from './schema'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 
@@ -132,6 +132,161 @@ async function seed() {
   } finally {
     await sql.end()
   }
+}
+
+// New function to seed model configurations
+export async function seedModelConfigurations() {
+  console.log('🌱 Seeding model configurations...')
+  
+  const modelSeeds = [
+    {
+      modelName: 'adidas',
+      displayName: 'Adidas Sports Shoe',
+      fileSize: '~2.5MB',
+      description: 'High-performance sports shoe with modern design',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+      camera: {
+        position: { x: 0, y: 5, z: 10 },
+        target: { x: 0, y: 0, z: 0 },
+        fov: 75,
+        near: 0.1,
+        far: 1000
+      },
+      controls: {
+        minDistance: 2,
+        maxDistance: 50,
+        autoRotateSpeed: 0,
+        enableDamping: true,
+        dampingFactor: 0.05
+      },
+      lighting: {
+        ambient: { color: '#404040', intensity: 0.4 },
+        directional: { 
+          color: '#ffffff', 
+          intensity: 0.6, 
+          position: { x: 1, y: 1, z: 1 },
+          castShadow: true 
+        },
+        point: { 
+          color: '#ffffff', 
+          intensity: 0.5, 
+          position: { x: 10, y: 10, z: 10 } 
+        }
+      },
+      materials: {},
+      paths: ['/models/scanned_adidas_sports_shoe.glb']
+    },
+    {
+      modelName: 'vans',
+      displayName: 'Blue Vans Shoe',
+      fileSize: '~3.1MB',
+      description: 'Classic casual shoe with blue canvas design',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+      camera: {
+        position: { x: 0, y: 5, z: 10 },
+        target: { x: 0, y: 0, z: 0 },
+        fov: 75,
+        near: 0.1,
+        far: 1000
+      },
+      controls: {
+        minDistance: 2,
+        maxDistance: 50,
+        autoRotateSpeed: 0,
+        enableDamping: true,
+        dampingFactor: 0.05
+      },
+      lighting: {
+        ambient: { color: '#404040', intensity: 0.4 },
+        directional: { 
+          color: '#ffffff', 
+          intensity: 0.6, 
+          position: { x: 1, y: 1, z: 1 },
+          castShadow: true 
+        },
+        point: { 
+          color: '#ffffff', 
+          intensity: 0.5, 
+          position: { x: 10, y: 10, z: 10 } 
+        }
+      },
+      materials: {},
+      paths: ['/models/unused_blue_vans_shoe.glb']
+    },
+    {
+      modelName: 'nike',
+      displayName: 'Nike Classic',
+      fileSize: '~4.2MB',
+      description: 'Classic Nike sneaker with OBJ format',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1 },
+      camera: {
+        position: { x: 0, y: 5, z: 10 },
+        target: { x: 0, y: 0, z: 0 },
+        fov: 75,
+        near: 0.1,
+        far: 1000
+      },
+      controls: {
+        minDistance: 2,
+        maxDistance: 50,
+        autoRotateSpeed: 0,
+        enableDamping: true,
+        dampingFactor: 0.05
+      },
+      lighting: {
+        ambient: { color: '#404040', intensity: 0.4 },
+        directional: { 
+          color: '#ffffff', 
+          intensity: 0.6, 
+          position: { x: 1, y: 1, z: 1 },
+          castShadow: true 
+        },
+        point: { 
+          color: '#ffffff', 
+          intensity: 0.5, 
+          position: { x: 10, y: 10, z: 10 } 
+        }
+      },
+      materials: {},
+      paths: ['/models/nike/nike.obj']
+    }
+  ]
+
+  const results = []
+  
+  for (const modelSeed of modelSeeds) {
+    try {
+      // Check if model already exists
+      const existing = await db
+        .select()
+        .from(modelConfigurations)
+        .where(eq(modelConfigurations.modelName, modelSeed.modelName))
+        .limit(1)
+
+      if (existing.length === 0) {
+        const [newConfig] = await db
+          .insert(modelConfigurations)
+          .values(modelSeed)
+          .returning()
+        
+        console.log(`✅ Created model config: ${modelSeed.displayName}`)
+        results.push(newConfig)
+      } else {
+        console.log(`ℹ️  Model config already exists: ${modelSeed.displayName}`)
+        results.push(existing[0])
+      }
+    } catch (error) {
+      console.error(`❌ Error creating model config for ${modelSeed.modelName}:`, error)
+    }
+  }
+
+  return results
 }
 
 // Run the seed function

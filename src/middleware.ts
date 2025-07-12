@@ -7,12 +7,12 @@ export default withAuth(
     const token = req.nextauth.token
 
     // ถ้าไม่ได้ login และเข้าหน้าที่ต้อง authentication
-    if (!token && (pathname.startsWith('/dashboard') || pathname.startsWith('/customizer') || pathname.startsWith('/collections'))) {
+    if (!token && (pathname.startsWith('/dashboard') || pathname.startsWith('/customizer') || pathname.startsWith('/collections') || pathname.startsWith('/model-configs'))) {
       return NextResponse.redirect(new URL('/login', req.url))
     }
 
     // ถ้าเป็น admin route แต่ไม่ใช่ admin
-    if (pathname.startsWith('/admin') && token?.role !== 'admin') {
+    if ((pathname.startsWith('/admin') || pathname.startsWith('/model-configs')) && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
 
@@ -40,6 +40,7 @@ export const config = {
     '/customizer/:path*',
     '/collections/:path*',
     '/admin/:path*',
+    '/model-configs/:path*',
     '/api/collections/:path*'
   ]
 }

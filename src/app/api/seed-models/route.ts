@@ -1,56 +1,46 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { seedModelConfigurations } from '@/lib/seed'
 
-// POST /api/seed-models - Mock seed endpoint for testing
 export async function POST() {
   try {
-    console.log('🌱 Mock seeding model configurations...')
+    // Check admin authentication
+    const session = await getServerSession(authOptions)
     
-    // Simulate seeding process
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    if (!session || session.user?.role !== 'admin') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Admin access required' 
+        },
+        { status: 403 }
+      )
+    }
+
+    console.log('🌱 Admin seeding model configurations...')
     
-    const mockResult = [
-      {
-        modelName: 'adidas_shoe',
-        displayName: 'Adidas Sports Shoe',
-        fileSize: '~2.5MB'
-      },
-      {
-        modelName: 'vans_shoe', 
-        displayName: 'Blue Vans Shoe',
-        fileSize: '~1.8MB'
-      },
-      {
-        modelName: 'nike_shoe',
-        displayName: 'Nike Running Shoe',
-        fileSize: '~3.1MB'
-      }
-    ]
+    // Run the seed function
+    const result = await seedModelConfigurations()
     
-    console.log(`✅ Mock seeded ${mockResult.length} model configurations`)
+    console.log('✅ Model configurations seeded successfully:', result)
     
     return NextResponse.json({
       success: true,
-      message: `Successfully seeded ${mockResult.length} model configurations`,
-      models: mockResult
+      message: 'Model configurations seeded successfully',
+      models: result
     })
-
+    
   } catch (error) {
-    console.error('❌ Seeding failed:', error)
+    console.error('❌ Error seeding model configurations:', error)
     
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to seed model configurations',
-      details: errorMessage
-    }, { status: 500 })
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to seed model configurations',
+        details: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    )
   }
-}
-
-// GET /api/seed-models - Check seeding status
-export async function GET() {
-  return NextResponse.json({
-    message: 'Model configurations seeding endpoint',
-    usage: 'POST to this endpoint to seed the database with model configurations'
-  })
 }

@@ -3,17 +3,52 @@
 import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { getModelDisplayInfo } from '@/lib/modelConfigs'
 import { ThemeToggleDetailed } from '@/components/theme-toggle'
-import type { ModelConfig } from '@/lib/modelConfigs'
 
-interface ModelDisplayInfo {
+interface ModelConfig {
   id: string
-  name: string
-  size: string
+  modelName: string
+  displayName: string
+  fileSize: string
   description: string
-  tags: string[]
-  timeout: number
+  position: { x: number; y: number; z: number }
+  rotation: { x: number; y: number; z: number }
+  scale: { x: number; y: number; z: number }
+  camera: {
+    position: { x: number; y: number; z: number }
+    target: { x: number; y: number; z: number }
+    fov: number
+    near: number
+    far: number
+  }
+  controls: {
+    minDistance: number
+    maxDistance: number
+    autoRotateSpeed: number
+    enableDamping: boolean
+    dampingFactor: number
+  }
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+interface EditingConfig {
+  position: { x: number; y: number; z: number }
+  rotation: { x: number; y: number; z: number }
+  scale: { x: number; y: number; z: number }
+  camera: {
+    position: { x: number; y: number; z: number }
+    target: { x: number; y: number; z: number }
+    fov: number
+    near: number
+    far: number
+  }
+  controls: {
+    minDistance: number
+    maxDistance: number
+    autoRotateSpeed: number
+  }
 }
 
 export default function ModelConfigsPage() {
@@ -23,17 +58,20 @@ export default function ModelConfigsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
-  const [modelInfo, setModelInfo] = useState<ModelDisplayInfo | null>(null)
+  const [editingConfig, setEditingConfig] = useState<EditingConfig | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated or not admin
   useEffect(() => {
     if (status === "unauthenticated") {
+      router.push("/login")
+    } else if (status === "authenticated" && session?.user?.role !== 'admin') {
       router.push("/")
     }
-  }, [status, router])
+  }, [status, session, router])
 
   useEffect(() => {
-    if (session) {
+    if (session?.user?.role === 'admin') {
       loadConfigs()
     }
   }, [session])
@@ -44,7 +82,7 @@ export default function ModelConfigsPage() {
       setError(null)
       console.log('🔄 Loading model configs from API...')
       
-      const response = await fetch('/api/model-configs/test')
+      const response = await fetch('/api/model-configs')
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -54,15 +92,12 @@ export default function ModelConfigsPage() {
       const result = await response.json()
       console.log('📋 API Response:', result)
       
-      if (result.success && result.data) {
-        setConfigs(result.data)
-        console.log(`✅ Loaded ${result.data.length} configurations successfully`)
+      // API returns array directly, not wrapped in success/data
+      if (Array.isArray(result)) {
+        setConfigs(result)
+        console.log(`✅ Loaded ${result.length} configurations successfully`)
       } else {
-        throw new Error(result.error || 'Unknown API error')
-      }
-      
-      if (result.data.length === 0) {
-        console.log('⚠️ No model configurations found - may need to seed database')
+        throw new Error('API returned unexpected format')
       }
     } catch (err) {
       console.error('❌ Error loading configs:', err)
@@ -73,15 +108,139 @@ export default function ModelConfigsPage() {
     }
   }
 
-  const loadModelInfo = async (modelName: string) => {
+  const selectModelForEdit = (config: ModelConfig) => {
+    setSelectedModel(config.modelName)
+    setEditingConfig({
+      position: { ...config.position },
+      rotation: { ...config.rotation },
+      scale: { ...config.scale },
+      camera: {
+        position: { ...config.camera.position },
+        target: { ...config.camera.target },
+        fov: config.camera.fov,
+        near: config.camera.near,
+        far: config.camera.far
+      },
+      controls: {
+        minDistance: config.controls.minDistance,
+        maxDistance: config.controls.maxDistance,
+        autoRotateSpeed: config.controls.autoRotateSpeed
+      }
+    })
+  }
+
+  const updateConfigValue = (path: string, value: number) => {
+    if (!editingConfig) return
+    
+    const newConfig = { ...editingConfig }
+    
+    // Use a switch-case approach for type safety
+    switch (path) {
+      case 'position.x':
+        newConfig.position.x = value
+        break
+      case 'position.y':
+        newConfig.position.y = value
+        break
+      case 'position.z':
+        newConfig.position.z = value
+        break
+      case 'rotation.x':
+        newConfig.rotation.x = value
+        break
+      case 'rotation.y':
+        newConfig.rotation.y = value
+        break
+      case 'rotation.z':
+        newConfig.rotation.z = value
+        break
+      case 'scale.x':
+        newConfig.scale.x = value
+        break
+      case 'scale.y':
+        newConfig.scale.y = value
+        break
+      case 'scale.z':
+        newConfig.scale.z = value
+        break
+      case 'camera.position.x':
+        newConfig.camera.position.x = value
+        break
+      case 'camera.position.y':
+        newConfig.camera.position.y = value
+        break
+      case 'camera.position.z':
+        newConfig.camera.position.z = value
+        break
+      case 'camera.target.x':
+        newConfig.camera.target.x = value
+        break
+      case 'camera.target.y':
+        newConfig.camera.target.y = value
+        break
+      case 'camera.target.z':
+        newConfig.camera.target.z = value
+        break
+      case 'camera.fov':
+        newConfig.camera.fov = value
+        break
+      case 'camera.near':
+        newConfig.camera.near = value
+        break
+      case 'camera.far':
+        newConfig.camera.far = value
+        break
+      case 'controls.minDistance':
+        newConfig.controls.minDistance = value
+        break
+      case 'controls.maxDistance':
+        newConfig.controls.maxDistance = value
+        break
+      case 'controls.autoRotateSpeed':
+        newConfig.controls.autoRotateSpeed = value
+        break
+    }
+    
+    setEditingConfig(newConfig)
+  }
+
+  const saveConfig = async () => {
+    if (!selectedModel || !editingConfig) return
+    
     try {
-      const info = await getModelDisplayInfo(modelName)
-      setModelInfo(info)
-      setSelectedModel(modelName)
-      console.log('📋 Model info:', info)
+      setSaving(true)
+      setError(null)
+      
+      const response = await fetch(`/api/model-configs?name=${selectedModel}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editingConfig)
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to save configuration')
+      }
+      
+      const updatedConfig = await response.json()
+      console.log('✅ Configuration saved:', updatedConfig)
+      
+      // Update the local state
+      setConfigs(prev => prev.map(config => 
+        config.modelName === selectedModel 
+          ? { ...config, ...updatedConfig, updatedAt: new Date().toISOString() }
+          : config
+      ))
+      
+      alert('Configuration saved successfully!')
+      
     } catch (err) {
-      console.error('❌ Error loading model info:', err)
-      setError('Failed to load model information')
+      console.error('❌ Error saving config:', err)
+      setError(`Failed to save configuration: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -96,6 +255,11 @@ export default function ModelConfigsPage() {
           'Content-Type': 'application/json',
         },
       })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`API Error: ${errorData.error || response.statusText}`)
+      }
       
       const result = await response.json()
       
@@ -128,7 +292,7 @@ export default function ModelConfigsPage() {
     )
   }
 
-  if (!session) {
+  if (!session || session.user.role !== 'admin') {
     return null
   }
 
@@ -136,7 +300,7 @@ export default function ModelConfigsPage() {
     return (
       <div className="min-h-screen bg-background text-foreground p-8">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Model Configurations</h1>
+          <h1 className="text-3xl font-bold mb-8">Model Configuration Admin</h1>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-primary"></div>
             <span className="ml-4 text-xl">กำลังโหลดการตั้งค่า...</span>
@@ -146,50 +310,38 @@ export default function ModelConfigsPage() {
     )
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background text-foreground p-8">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Model Configurations</h1>
-          <div className="bg-destructive/10 border border-destructive rounded-lg p-6 text-center">
-            <h2 className="text-xl font-bold text-destructive mb-2">Error</h2>
-            <p className="text-destructive-foreground">{error}</p>
-            <button 
-              onClick={loadConfigs}
-              className="mt-4 px-4 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <header className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold">Model Configurations</h1>
-            <ThemeToggleDetailed />
+            <div>
+              <h1 className="text-3xl font-bold">Model Configuration Admin</h1>
+              <p className="text-muted-foreground">Admin-only access to edit model position, camera, and zoom defaults</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={seedDatabase}
+                disabled={loading}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-muted disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              >
+                {loading ? 'Seeding...' : 'Seed Models'}
+              </button>
+              <ThemeToggleDetailed />
+            </div>
           </div>
-          <div className="flex justify-between items-center">
-            <p className="text-muted-foreground">Loaded from database - {configs.length} models available</p>
-            <button
-              onClick={seedDatabase}
-              disabled={loading}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed text-primary-foreground rounded-lg transition-colors"
-            >
-              {loading ? 'Seeding...' : 'Seed Database'}
-            </button>
-          </div>
+          
+          {error && (
+            <div className="bg-destructive/10 border border-destructive rounded-lg p-4 mb-4">
+              <p className="text-destructive">{error}</p>
+            </div>
+          )}
         </header>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-3 gap-8">
           {/* Model List */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold mb-4">Available Models</h2>
+          <div className="lg:col-span-1">
+            <h2 className="text-xl font-semibold mb-4">Models ({configs.length})</h2>
             
             {configs.length === 0 ? (
               <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-6 text-center">
@@ -201,132 +353,278 @@ export default function ModelConfigsPage() {
                 <button
                   onClick={seedDatabase}
                   disabled={loading}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-muted disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-muted disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                 >
                   {loading ? 'Seeding...' : 'Seed Sample Data'}
                 </button>
               </div>
             ) : (
-              configs.map((config) => (
-                <div
-                  key={config.id}
-                  className={`bg-card border border-border rounded-lg p-6 cursor-pointer transition-all hover:bg-accent ${
-                    selectedModel === config.id ? 'ring-2 ring-primary' : ''
-                  }`}
-                  onClick={() => loadModelInfo(config.id)}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-lg font-bold text-primary">{config.displayName}</h3>
-                    <span className="text-sm text-muted-foreground">{config.fileSize}</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground mb-3">
-                    <div>
-                      <span className="text-muted-foreground">Model ID:</span> {config.id}
+              <div className="space-y-3">
+                {configs.map((config) => (
+                  <div
+                    key={config.id}
+                    className={`bg-card border border-border rounded-lg p-4 cursor-pointer transition-all hover:bg-accent ${
+                      selectedModel === config.modelName ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => selectModelForEdit(config)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-primary">{config.displayName}</h3>
+                      <span className="text-xs text-muted-foreground">{config.fileSize}</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Scale:</span> {config.scale.x}x
+                    
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Model: {config.modelName}
                     </div>
-                  </div>
 
-                  <p className="text-sm text-muted-foreground mb-4">{config.description}</p>
-
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-muted rounded p-2">
-                      <div className="text-muted-foreground">Position</div>
-                      <div>x: {config.position.x}</div>
-                      <div>y: {config.position.y}</div>
-                      <div>z: {config.position.z}</div>
-                    </div>
-                    <div className="bg-muted rounded p-2">
-                      <div className="text-muted-foreground">Camera FOV</div>
-                      <div className="text-primary">{config.camera.fov}°</div>
-                    </div>
-                    <div className="bg-muted rounded p-2">
-                      <div className="text-muted-foreground">Materials</div>
-                      <div className="text-green-600 dark:text-green-400">{Object.keys(config.materials).length} types</div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="bg-muted rounded p-1 text-center">
+                        <div className="text-muted-foreground">Scale</div>
+                        <div>{config.scale.x}x</div>
+                      </div>
+                      <div className="bg-muted rounded p-1 text-center">
+                        <div className="text-muted-foreground">FOV</div>
+                        <div>{config.camera.fov}°</div>
+                      </div>
+                      <div className="bg-muted rounded p-1 text-center">
+                        <div className="text-muted-foreground">Distance</div>
+                        <div>{config.controls.minDistance}-{config.controls.maxDistance}</div>
+                      </div>
                     </div>
                   </div>
-
-                  {config.tags && config.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      {config.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="px-2 py-1 bg-primary/20 text-primary text-xs rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Detailed View */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            {selectedModel && modelInfo ? (
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Configuration Details</h2>
-                
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h3 className="font-semibold text-primary mb-2">Basic Info</h3>
-                      <div className="space-y-2 text-sm">
-                        <div><span className="text-muted-foreground">Name:</span> {modelInfo.name}</div>
-                        <div><span className="text-muted-foreground">Size:</span> {modelInfo.size}</div>
-                        <div><span className="text-muted-foreground">Timeout:</span> {modelInfo.timeout}s</div>
+          {/* Configuration Editor */}
+          <div className="lg:col-span-2">
+            {selectedModel && editingConfig ? (
+              <div className="bg-card border border-border rounded-lg p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold">Edit Configuration: {selectedModel}</h2>
+                  <button
+                    onClick={saveConfig}
+                    disabled={saving}
+                    className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed text-primary-foreground rounded-lg transition-colors"
+                  >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Position & Transform */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-primary">Position & Transform</h3>
+                    
+                    {/* Position */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Position</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['x', 'y', 'z'].map((axis) => (
+                          <div key={axis}>
+                            <label className="text-xs text-muted-foreground">X: {axis.toUpperCase()}</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editingConfig.position[axis as keyof typeof editingConfig.position]}
+                              onChange={(e) => updateConfigValue(`position.${axis}`, parseFloat(e.target.value) || 0)}
+                              className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-green-600 dark:text-green-400 mb-2">Tags</h3>
-                      <div className="flex flex-wrap gap-1">
-                        {modelInfo.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="px-2 py-1 bg-green-500/20 text-green-700 dark:text-green-300 text-xs rounded"
-                          >
-                            {tag}
-                          </span>
+
+                    {/* Rotation */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Rotation (radians)</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['x', 'y', 'z'].map((axis) => (
+                          <div key={axis}>
+                            <label className="text-xs text-muted-foreground">R: {axis.toUpperCase()}</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editingConfig.rotation[axis as keyof typeof editingConfig.rotation]}
+                              onChange={(e) => updateConfigValue(`rotation.${axis}`, parseFloat(e.target.value) || 0)}
+                              className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Scale */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Scale</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['x', 'y', 'z'].map((axis) => (
+                          <div key={axis}>
+                            <label className="text-xs text-muted-foreground">S: {axis.toUpperCase()}</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editingConfig.scale[axis as keyof typeof editingConfig.scale]}
+                              onChange={(e) => updateConfigValue(`scale.${axis}`, parseFloat(e.target.value) || 1)}
+                              className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                            />
+                          </div>
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="font-semibold text-purple-600 dark:text-purple-400 mb-2">Description</h3>
-                    <p className="text-muted-foreground text-sm">{modelInfo.description}</p>
-                  </div>
-
-                  {selectedModel && (
-                    <div>
-                      <h3 className="font-semibold text-yellow-600 dark:text-yellow-400 mb-2">Configuration Data</h3>
-                      <div className="bg-muted border border-border rounded p-4 text-xs overflow-auto max-h-64">
-                        <pre className="text-green-700 dark:text-green-300">
-                          {JSON.stringify(configs.find(c => c.id === selectedModel), null, 2)}
-                        </pre>
+                  {/* Camera & Controls */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-green-600 dark:text-green-400">Camera & Controls</h3>
+                    
+                    {/* Camera Position */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Camera Position</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['x', 'y', 'z'].map((axis) => (
+                          <div key={axis}>
+                            <label className="text-xs text-muted-foreground">Cam: {axis.toUpperCase()}</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editingConfig.camera.position[axis as keyof typeof editingConfig.camera.position]}
+                              onChange={(e) => updateConfigValue(`camera.position.${axis}`, parseFloat(e.target.value) || 0)}
+                              className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
+
+                    {/* Camera Target */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Camera Target</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['x', 'y', 'z'].map((axis) => (
+                          <div key={axis}>
+                            <label className="text-xs text-muted-foreground">Target: {axis.toUpperCase()}</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editingConfig.camera.target[axis as keyof typeof editingConfig.camera.target]}
+                              onChange={(e) => updateConfigValue(`camera.target.${axis}`, parseFloat(e.target.value) || 0)}
+                              className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Camera Settings */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Camera Settings</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">FOV</label>
+                          <input
+                            type="number"
+                            step="1"
+                            min="10"
+                            max="120"
+                            value={editingConfig.camera.fov}
+                            onChange={(e) => updateConfigValue('camera.fov', parseFloat(e.target.value) || 75)}
+                            className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Near</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={editingConfig.camera.near}
+                            onChange={(e) => updateConfigValue('camera.near', parseFloat(e.target.value) || 0.1)}
+                            className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Far</label>
+                          <input
+                            type="number"
+                            step="10"
+                            min="10"
+                            value={editingConfig.camera.far}
+                            onChange={(e) => updateConfigValue('camera.far', parseFloat(e.target.value) || 1000)}
+                            className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Zoom Controls</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Min Distance</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.1"
+                            value={editingConfig.controls.minDistance}
+                            onChange={(e) => updateConfigValue('controls.minDistance', parseFloat(e.target.value) || 1)}
+                            className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Max Distance</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="1"
+                            value={editingConfig.controls.maxDistance}
+                            onChange={(e) => updateConfigValue('controls.maxDistance', parseFloat(e.target.value) || 10)}
+                            className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Auto Rotate Speed</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="2"
+                            value={editingConfig.controls.autoRotateSpeed}
+                            onChange={(e) => updateConfigValue('controls.autoRotateSpeed', parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-1 bg-background border border-border rounded text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview Values */}
+                <div className="mt-6 p-4 bg-muted rounded-lg">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Values Preview</h4>
+                  <div className="text-xs font-mono text-muted-foreground overflow-x-auto">
+                    <pre className="whitespace-pre-wrap">
+                      {JSON.stringify(editingConfig, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center text-muted-foreground py-12">
-                <h2 className="text-xl font-semibold mb-2">Select a Model</h2>
-                <p>Click on a model from the list to view its detailed configuration</p>
+              <div className="bg-card border border-border rounded-lg p-12 text-center">
+                <h2 className="text-xl font-semibold mb-2 text-muted-foreground">Select a Model to Edit</h2>
+                <p className="text-muted-foreground">Choose a model from the list to edit its position, camera, and zoom default settings</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="mt-8 bg-primary/10 border border-primary/30 rounded-lg p-4">
-          <h3 className="font-semibold text-primary mb-2">💡 Database Integration Status</h3>
+        <div className="mt-8 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+          <h3 className="font-semibold text-amber-600 dark:text-amber-400 mb-2">⚠️ Admin Only Access</h3>
           <p className="text-sm text-muted-foreground">
-            This page displays model configurations loaded dynamically from the database. 
-            Data includes position, rotation, scale, camera settings, lighting, and material mappings.
+            This page is restricted to administrators only. Changes made here will affect how 3D models are displayed for all users.
+            All configuration changes are saved to the database and take effect immediately.
           </p>
         </div>
       </div>

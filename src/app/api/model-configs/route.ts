@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { 
   getAllModelConfigurations, 
   getModelConfiguration, 
@@ -52,9 +54,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/model-configs - สร้าง model configuration ใหม่
+// POST /api/model-configs - สร้าง model configuration ใหม่ (admin only)
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 })
+    }
+
     const data = await request.json()
     
     // ตรวจสอบว่ามี model name อยู่แล้วหรือไม่
@@ -78,9 +86,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/model-configs?name=adidas - อัปเดต model configuration
+// PUT /api/model-configs?name=adidas - อัปเดต model configuration (admin only)
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const modelName = searchParams.get('name')
     
@@ -112,9 +126,15 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE /api/model-configs?name=adidas - ลบ model configuration (soft delete)
+// DELETE /api/model-configs?name=adidas - ลบ model configuration (soft delete, admin only)
 export async function DELETE(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const modelName = searchParams.get('name')
     
