@@ -82,24 +82,24 @@ export default function HomePage() {
             {/* Left Content */}
             <div className="text-center lg:text-left space-y-6">
               {/* Badge */}
-              <div className="inline-flex items-center glass-effect rounded-full px-6 py-3 text-sm font-medium text-white border border-white/20 animate-fade-in">
+              <div className="inline-flex items-center glass-effect rounded-full px-6 py-3 text-sm font-medium text-foreground border border-border animate-fade-in">
                 <Sparkles className="h-4 w-4 mr-2 text-yellow-400" />
                 ระบบ 3D ใหม่ล่าสุด
               </div>
 
               {/* Main Heading */}
               <div className="space-y-4 animate-slide-up">
-                <h1 className="text-5xl md:text-6xl font-black text-white mb-4 leading-tight">
+                <h1 className="text-5xl md:text-6xl font-black text-foreground mb-4 leading-tight">
                   รองเท้านันยาง
                   <br />
                   <span className="bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent animate-gradient">
                     OEM Premium
                   </span>
                 </h1>
-                <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto lg:mx-0 leading-relaxed">
                   ออกแบบและสั่งผลิตรองเท้านันยางคุณภาพสูง ด้วยเทคโนโลยี 3D ที่ล้ำสมัย
                   <br />
-                  <span className="text-blue-400 font-semibold">เริ่มต้นเพียง 3 นาที</span>
+                  <span className="text-primary font-semibold">เริ่มต้นเพียง 3 นาที</span>
                 </p>
               </div>
 
@@ -107,7 +107,7 @@ export default function HomePage() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center animate-scale-in" style={{ animationDelay: '0.3s' }}>
                 <Link
                   href="/login"
-                  className="group btn-primary px-8 py-4 text-lg font-bold shadow-glow hover:shadow-glow-lg transform hover:scale-105 transition-all duration-300"
+                  className="group bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-4 text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
                 >
                   <span className="flex items-center space-x-3">
                     <span>เริ่มต้นออกแบบ</span>
@@ -116,7 +116,7 @@ export default function HomePage() {
                 </Link>
                 <Link
                   href="/customizer"
-                  className="group glass-effect border-2 border-white/30 hover:border-white/50 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 hover:scale-105 backdrop-blur-sm"
+                  className="group bg-secondary hover:bg-secondary/80 border border-border text-secondary-foreground font-bold px-8 py-4 rounded-xl transition-all duration-300 hover:scale-105 backdrop-blur-sm"
                 >
                   <span className="flex items-center space-x-3">
                     <Play size={20} className="group-hover:scale-110 transition-transform" />
@@ -454,7 +454,7 @@ export default function HomePage() {
             <p className="text-gray-300 text-lg mb-8 leading-relaxed">
               เข้าสู่ระบบเพื่อเริ่มออกแบบรองเท้าในแบบที่คุณต้องการ
               <br />
-              <span className="text-blue-400 font-semibold">ทดลองใช้ฟรี ไม่เสียค่าใช้จ่าย</span>
+              <span className="text-blue-400 font-semibold">ลองใช้เลย</span>
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link

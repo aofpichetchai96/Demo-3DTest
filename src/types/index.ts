@@ -8,6 +8,12 @@ export interface ShoeModel {
   previewImage: string
 }
 
+export interface Colors {
+  primary: string
+  secondary: string
+  accent: string
+}
+
 export interface ShoeCustomization {
   id: string
   userId: string
@@ -28,9 +34,19 @@ export interface Collection {
   userId: string
   name: string
   description?: string
-  customizations: ShoeCustomization[]
-  createdAt: Date
-  updatedAt: Date
+  notes?: string | null
+  colors: {
+    primary: string
+    secondary: string
+    accent: string
+  } | unknown
+  size: string
+  tags: string[] | unknown
+  isPublic: boolean
+  views: number
+  likes: number
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 export interface Quote {

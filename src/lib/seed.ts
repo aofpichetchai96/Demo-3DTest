@@ -1,131 +1,127 @@
 import { config } from 'dotenv'
-import { db } from './db'
+import { db, sql } from './db'
 import { users, collections } from './schema'
+import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 
-// Load environment variables from .env.local
+// Load environment variables
 config({ path: '.env.local' })
 
 async function seed() {
   console.log('🌱 Starting database seeding...')
 
   try {
-    // Create admin user
-    const adminPassword = await bcrypt.hash('password123', 12)
-    const [adminUser] = await db.insert(users).values({
-      email: 'admin@example.com',
-      name: 'Admin User',
-      passwordHash: adminPassword,
-      role: 'admin'
-    }).returning()
+    // Check if admin user already exists
+    const existingAdmin = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'admin@example.com'))
+      .limit(1)
 
-    console.log('✅ Admin user created:', adminUser.email)
+    if (existingAdmin.length === 0) {
+      // Create admin user
+      const adminPasswordHash = await bcrypt.hash('password123', 12)
+      const [adminUser] = await db
+        .insert(users)
+        .values({
+          email: 'admin@example.com',
+          name: 'Admin User',
+          passwordHash: adminPasswordHash,
+          role: 'admin'
+        })
+        .returning()
 
-    // Create demo user
-    const userPassword = await bcrypt.hash('password123', 12)
-    const [demoUser] = await db.insert(users).values({
-      email: 'user@example.com',
-      name: 'Demo User',
-      passwordHash: userPassword,
-      role: 'user'
-    }).returning()
-
-    console.log('✅ Demo user created:', demoUser.email)
-
-    // Create sample collections for demo user
-    const sampleCollections = [
-      {
-        userId: demoUser.id,
-        name: 'Classic Black',
-        colors: {
-          primary: '#1a1a1a',
-          secondary: '#2d2d2d',
-          accent: '#ffffff'
-        },
-        size: '42',
-        notes: 'Timeless black design with white accents',
-        tags: ['classic', 'formal', 'black'],
-        isPublic: true
-      },
-      {
-        userId: demoUser.id,
-        name: 'Royal Blue',
-        colors: {
-          primary: '#1e40af',
-          secondary: '#1e3a8a',
-          accent: '#60a5fa'
-        },
-        size: '41',
-        notes: 'Professional blue with lighter accents',
-        tags: ['blue', 'professional', 'sport'],
-        isPublic: true
-      },
-      {
-        userId: demoUser.id,
-        name: 'Forest Green',
-        colors: {
-          primary: '#166534',
-          secondary: '#15803d',
-          accent: '#22c55e'
-        },
-        size: '43',
-        notes: 'Nature-inspired green combination',
-        tags: ['green', 'nature', 'outdoor'],
-        isPublic: false
-      },
-      {
-        userId: demoUser.id,
-        name: 'Sunset Orange',
-        colors: {
-          primary: '#ea580c',
-          secondary: '#dc2626',
-          accent: '#fbbf24'
-        },
-        size: '42',
-        notes: 'Vibrant sunset colors for bold style',
-        tags: ['orange', 'vibrant', 'sunset'],
-        isPublic: true
-      }
-    ]
-
-    for (const collection of sampleCollections) {
-      const [created] = await db.insert(collections).values(collection).returning()
-      console.log('✅ Collection created:', created.name)
+      console.log('✅ Admin user created:', adminUser.email)
+    } else {
+      console.log('ℹ️  Admin user already exists')
     }
 
-    // Create some collections for admin user
-    const adminCollections = [
-      {
-        userId: adminUser.id,
-        name: 'Purple Dream',
-        colors: {
-          primary: '#7c3aed',
-          secondary: '#6d28d9',
-          accent: '#c4b5fd'
-        },
-        size: '40',
-        notes: 'Elegant purple design for special occasions',
-        tags: ['purple', 'elegant', 'special'],
-        isPublic: true
-      },
-      {
-        userId: adminUser.id,
-        name: 'Fire Red',
-        colors: {
-          primary: '#dc2626',
-          secondary: '#b91c1c',
-          accent: '#fca5a5'
-        },
-        size: '44',
-        notes: 'Bold red design with striking presence',
-        tags: ['red', 'bold', 'striking'],
-        isPublic: true
-      }
-    ]
+    // Check if demo user already exists
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'user@example.com'))
+      .limit(1)
 
-    for (const collection of adminCollections) {
-      const [created] = await db.insert(collections).values(collection).returning()
-      console.log('✅ Admin collection created:', created.name)
+    let demoUser = existingUser[0]
+    if (!demoUser) {
+      // Create demo user
+      const userPasswordHash = await bcrypt.hash('password123', 12)
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          email: 'user@example.com',
+          name: 'Demo User',
+          passwordHash: userPasswordHash,
+          role: 'user'
+        })
+        .returning()
+
+      demoUser = newUser
+      console.log('✅ Demo user created:', demoUser.email)
+    } else {
+      console.log('ℹ️  Demo user already exists')
+    }
+
+    // Check if demo collections already exist
+    const existingCollections = await db
+      .select()
+      .from(collections)
+      .where(eq(collections.userId, demoUser.id))
+
+    if (existingCollections.length === 0) {
+      // Create sample collections for demo user
+      const sampleCollections = [
+        {
+          name: 'Classic Black Design',
+          colors: {
+            primary: '#000000',
+            secondary: '#FFFFFF',
+            accent: '#FF0000'
+          },
+          size: '42',
+          notes: 'Classic black and white design with red accents',
+          tags: ['classic', 'formal'],
+          isPublic: true
+        },
+        {
+          name: 'Ocean Blue Style',
+          colors: {
+            primary: '#1E90FF',
+            secondary: '#000080',
+            accent: '#FFFFFF'
+          },
+          size: '41',
+          notes: 'Ocean-inspired color scheme for summer',
+          tags: ['summer', 'blue', 'ocean'],
+          isPublic: true
+        },
+        {
+          name: 'Forest Adventure',
+          colors: {
+            primary: '#228B22',
+            secondary: '#8B4513',
+            accent: '#FFFF00'
+          },
+          size: '43',
+          notes: 'Outdoor adventure inspired design',
+          tags: ['outdoor', 'adventure', 'green'],
+          isPublic: false
+        }
+      ]
+
+      for (const collection of sampleCollections) {
+        await db
+          .insert(collections)
+          .values({
+            userId: demoUser.id,
+            ...collection
+          })
+      }
+
+      console.log('✅ Sample collections created')
+    } else {
+      console.log('ℹ️  Sample collections already exist')
     }
 
     console.log('🎉 Database seeding completed successfully!')
@@ -133,6 +129,8 @@ async function seed() {
   } catch (error) {
     console.error('❌ Error seeding database:', error)
     throw error
+  } finally {
+    await sql.end()
   }
 }
 

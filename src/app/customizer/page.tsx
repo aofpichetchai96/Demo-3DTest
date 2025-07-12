@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Save, Download, ArrowLeft, RotateCcw } from "lucide-react"
-import ShoeModel3D from "@/components/ShoeModel3D"
+import Vanilla3DViewer from "@/components/Vanilla3DViewer"
 import { saveDesign, updateDesign, getDesignById, type SavedDesign } from "@/lib/collections"
 
 interface DesignData {
@@ -68,11 +68,12 @@ export default function CustomizerPage() {
 
   const [isSaving, setIsSaving] = useState(false)
   const [autoRotate, setAutoRotate] = useState(true)
+  const [selectedModel, setSelectedModel] = useState<'adidas' | 'vans'>('adidas')
 
   // Redirect if not authenticated
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login")
+      router.push("/")
     }
   }, [status, router])
 
@@ -219,7 +220,7 @@ export default function CustomizerPage() {
                 <ArrowLeft size={20} />
                 <span>กลับ</span>
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">Nike Customizer</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Customizer</h1>
             </div>
             <div className="flex items-center space-x-4">
               <button
@@ -269,14 +270,11 @@ export default function CustomizerPage() {
               <p className="text-sm text-gray-600">ลากเมาส์เพื่อหมุนดู, scroll เพื่อซูม</p>
             </div>
             <div className="h-[500px]">
-              <ShoeModel3D
+              <Vanilla3DViewer
                 colors={designData.colors}
-                size={designData.size}
                 autoRotate={autoRotate}
                 showControls={true}
-                initialZoom={10}
-                minZoom={5}
-                maxZoom={20}
+                modelName={selectedModel}
               />
             </div>
           </div>
@@ -447,6 +445,35 @@ export default function CustomizerPage() {
                   <p className="text-sm font-medium">เด่น</p>
                   <p className="text-xs text-gray-500">{designData.colors.accent}</p>
                 </div>
+              </div>
+            </div>
+
+            {/* Model Selection */}
+            <div className="bg-white rounded-lg p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4">เลือกรุ่นรองเท้า</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setSelectedModel('adidas')}
+                  className={`p-4 border rounded-lg text-center transition-colors ${
+                    selectedModel === 'adidas'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="font-medium">Adidas Sports</div>
+                  <div className="text-sm text-gray-500">รองเท้ากีฬาสแกน 3D</div>
+                </button>
+                <button
+                  onClick={() => setSelectedModel('vans')}
+                  className={`p-4 border rounded-lg text-center transition-colors ${
+                    selectedModel === 'vans'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="font-medium">Vans Classic</div>
+                  <div className="text-sm text-gray-500">รองเท้าแบบคลาสสิค</div>
+                </button>
               </div>
             </div>
           </div>

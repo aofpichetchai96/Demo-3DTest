@@ -210,7 +210,7 @@ export default function LoginPage() {
                   </div>
                 </div>
               </div>
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+              {/* <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-purple-300">👥 User</p>
@@ -221,7 +221,7 @@ export default function LoginPage() {
                     <p className="text-sm font-mono text-white">password123</p>
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>

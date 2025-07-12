@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth/next'
+import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { collections, users } from '@/lib/schema'
@@ -24,12 +24,41 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Get user's collections
-    const userCollections = await db
-      .select()
-      .from(collections)
-      .where(eq(collections.userId, user.id))
-      .orderBy(desc(collections.updatedAt))
+    let userCollections
+
+    if (user.role === 'admin') {
+      // Admin เห็นทุก collections พร้อมข้อมูล creator
+      userCollections = await db
+        .select({
+          id: collections.id,
+          name: collections.name,
+          colors: collections.colors,
+          size: collections.size,
+          notes: collections.notes,
+          tags: collections.tags,
+          isPublic: collections.isPublic,
+          views: collections.views,
+          likes: collections.likes,
+          createdAt: collections.createdAt,
+          updatedAt: collections.updatedAt,
+          creator: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: users.role
+          }
+        })
+        .from(collections)
+        .innerJoin(users, eq(collections.userId, users.id))
+        .orderBy(desc(collections.updatedAt))
+    } else {
+      // User เห็นเฉพาะ collections ของตัวเอง
+      userCollections = await db
+        .select()
+        .from(collections)
+        .where(eq(collections.userId, user.id))
+        .orderBy(desc(collections.updatedAt))
+    }
 
     return NextResponse.json(userCollections)
   } catch (error) {
@@ -79,8 +108,8 @@ export async function POST(request: NextRequest) {
         name,
         colors,
         size,
-        notes: notes || null,
-        tags: tags || null,
+        notes: notes || '',
+        tags: tags || [],
         isPublic: isPublic || false
       })
       .returning()
