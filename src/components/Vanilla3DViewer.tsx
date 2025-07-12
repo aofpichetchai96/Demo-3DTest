@@ -29,61 +29,103 @@ export default function Vanilla3DViewer({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadedPath, setLoadedPath] = useState<string>('')
   
+  // Keep track of pending colors to apply after model loads
+  const pendingColorsRef = useRef<Colors | null>(null)
+  
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sceneRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rendererRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const modelRef = useRef<any>(null)
-  const hasInitialized = useRef(false)
   const mounted = useRef(true)
   const animationId = useRef<number | null>(null)
 
-  // Since useEffect doesn't work in this environment, use ref-based initialization
-  // Only run on client-side to avoid SSR issues
-  if (!hasInitialized.current && typeof window !== 'undefined') {
-    console.log('🚀 REF-BASED INITIALIZATION - Starting GLB loading process (CLIENT-SIDE)')
-    hasInitialized.current = true
-    
-    // Use longer timeout and retry mechanism to ensure DOM is ready
-    const tryInit = (attempt: number = 1) => {
-      setTimeout(() => {
-        // Only run on client-side
-        if (typeof window === 'undefined' || typeof document === 'undefined') {
-          console.log('❌ Server-side detected, skipping Three.js initialization')
-          return
-        }
-        
-        console.log(`🕒 TIMEOUT CALLBACK - Attempt ${attempt}, checking canvas...`)
-        console.log('📍 canvasRef.current:', !!canvasRef.current)
-        console.log('📍 DOM canvas elements:', document.querySelectorAll('canvas').length)
-        
-        // Try both ref and direct DOM query
-        const canvas = canvasRef.current || document.querySelector('canvas')
-        console.log('📍 Canvas found via:', canvas ? (canvasRef.current ? 'ref' : 'DOM query') : 'none')
-        
-        if (canvas) {
-          console.log('✅ Canvas ready! Starting Three.js initialization')
-          // Update ref if we found via DOM query (using type assertion to bypass readonly)
-          if (!canvasRef.current && canvas instanceof HTMLCanvasElement) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (canvasRef as any).current = canvas
-          }
-          initThreeJS()
-        } else if (attempt < 10) {
-          console.log(`❌ Canvas not ready on attempt ${attempt}, retrying...`)
-          tryInit(attempt + 1)
-        } else {
-          console.error('❌ Canvas never became ready after 10 attempts')
-          setLoadError('Canvas element not ready - DOM mounting issue')
-        }
-      }, attempt * 100) // Shorter delay, more attempts
+  // Safe setState functions
+  const safeSetLoadingStatus = useCallback((status: string) => {
+    if (mounted.current) {
+      setLoadingStatus(status)
     }
-    
-    tryInit()
-  }
+  }, [])
 
-  const findWorkingModelPath = async (): Promise<string> => {
+  const safeSetLoadingProgress = useCallback((progress: number) => {
+    if (mounted.current) {
+      setLoadingProgress(progress)
+    }
+  }, [])
+
+  const safeSetIsLoaded = useCallback((loaded: boolean) => {
+    if (mounted.current) {
+      setIsLoaded(loaded)
+    }
+  }, [])
+
+  const safeSetLoadError = useCallback((error: string | null) => {
+    if (mounted.current) {
+      setLoadError(error)
+    }
+  }, [])
+
+  const safeSetLoadedPath = useCallback((path: string) => {
+    if (mounted.current) {
+      setLoadedPath(path)
+    }
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    mounted.current = true
+    
+    return () => {
+      console.log('🧹 Vanilla3DViewer unmounting, cleaning up...')
+      mounted.current = false
+      
+      // Cancel any pending animation
+      if (animationId.current) {
+        cancelAnimationFrame(animationId.current)
+        animationId.current = null
+      }
+      
+      // Cleanup Three.js resources
+      if (rendererRef.current) {
+        try {
+          rendererRef.current.dispose()
+          rendererRef.current = null
+        } catch (e) {
+          console.warn('Error disposing renderer:', e)
+        }
+      }
+      
+      if (sceneRef.current) {
+        try {
+          // Dispose of all meshes and materials
+          sceneRef.current.traverse((child: THREE.Object3D) => {
+            if (child.type === 'Mesh') {
+              const mesh = child as THREE.Mesh
+              if (mesh.geometry) mesh.geometry.dispose()
+              if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                  mesh.material.forEach((material: THREE.Material) => material.dispose())
+                } else {
+                  mesh.material.dispose()
+                }
+              }
+            }
+          })
+          sceneRef.current.clear()
+          sceneRef.current = null
+        } catch (e) {
+          console.warn('Error disposing scene:', e)
+        }
+      }
+      
+      if (modelRef.current) {
+        modelRef.current = null
+      }
+    }
+  }, [])
+
+  const findWorkingModelPath = useCallback(async (): Promise<string> => {
     // ใช้ configuration จากฐานข้อมูล
     try {
       const modelPaths = await getModelPaths(modelName)
@@ -126,11 +168,17 @@ export default function Vanilla3DViewer({
       console.error('❌ Error getting model config:', configError)
       throw new Error(`Model configuration error: ${configError}`)
     }
-  }
+  }, [modelName])
 
-  const initThreeJS = async () => {
+  const initThreeJS = useCallback(async () => {
     console.log('🏁 STARTING initThreeJS function')
     console.log('🎯 Current modelName:', modelName)
+    
+    // Early mount check
+    if (!mounted.current) {
+      console.log('❌ Component unmounted before Three.js initialization')
+      return
+    }
     
     try {
       // Get dynamic configuration with fallback to static
@@ -184,9 +232,10 @@ export default function Vanilla3DViewer({
           tags: []
         }
       }
-      
+
+      // Early mount check after getting config
       if (!mounted.current) return
-      setLoadingStatus(`Searching for ${config.displayName}...`)
+      safeSetLoadingStatus(`Searching for ${config.displayName}...`)
       console.log('📋 Loading status set to: Searching for GLB model...')
       
       if (!mounted.current || !canvasRef.current) {
@@ -201,14 +250,19 @@ export default function Vanilla3DViewer({
         workingPath = await findWorkingModelPath()
         console.log('✅ findWorkingModelPath completed with result:', workingPath)
         if (!mounted.current) return
-        setLoadingStatus(`Found ${config.displayName} (${config.fileSize})`)
-        setLoadedPath(workingPath)
+        safeSetLoadingStatus(`Found ${config.displayName} (${config.fileSize})`)
+        safeSetLoadedPath(workingPath)
         console.log('Using model path:', workingPath)
       } catch (error) {
         console.error('❌ findWorkingModelPath failed:', error)
-        setLoadError(`${config.displayName} file not found`)
+        if (mounted.current) {
+          safeSetLoadError(`${config.displayName} file not found`)
+        }
         return
       }
+      
+      // Mount check before scene setup
+      if (!mounted.current) return
       
       // Scene setup
       const scene = new THREE.Scene()
@@ -227,12 +281,17 @@ export default function Vanilla3DViewer({
         config.camera.position.y,
         config.camera.position.z
       )
+      camera.lookAt(
+        config.camera.target.x,
+        config.camera.target.y,
+        config.camera.target.z
+      )
       
       // Renderer setup
       const renderer = new THREE.WebGLRenderer({ 
         canvas: canvasRef.current,
         antialias: true,
-        alpha: true
+        alpha: true 
       })
       renderer.setSize(canvasRef.current.clientWidth, canvasRef.current.clientHeight)
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -240,7 +299,7 @@ export default function Vanilla3DViewer({
       renderer.shadowMap.type = THREE.PCFSoftShadowMap
       rendererRef.current = renderer
       
-      // Dynamic Lighting setup
+      // Dynamic Lighting setup based on config
       const ambientLight = new THREE.AmbientLight(
         config.lighting.ambient.color, 
         config.lighting.ambient.intensity
@@ -287,29 +346,27 @@ export default function Vanilla3DViewer({
         controls.autoRotate = autoRotate
         controls.autoRotateSpeed = config.controls.autoRotateSpeed
       }
-      
-      if (!mounted.current) return
-      setLoadingStatus(`Loading ${config.displayName}...`)
-      
-      // Load GLB model
+
+      // Load GLB model with enhanced progress tracking
       const loader = new GLTFLoader()
-      
-      console.log('Starting GLB load:', workingPath)
-      if (!mounted.current) return
-      setLoadingStatus(`Requesting ${config.displayName} file...`)
-      
+      console.log('📦 Starting GLB load from:', workingPath)
+      safeSetLoadingStatus(`Loading ${config.displayName}...`)
+
       loader.load(
         workingPath,
         // onLoad callback
         (gltf) => {
-          if (!mounted.current) return
+          if (!mounted.current) {
+            console.log('❌ Component unmounted during model loading, skipping processing')
+            return
+          }
           
           console.log('🎉 GLB loaded successfully:', gltf)
           console.log('Model scene:', gltf.scene)
           console.log('Model animations:', gltf.animations)
           if (!mounted.current) return
-          setLoadingStatus(`Processing ${config.displayName}...`)
-          setLoadingProgress(100)
+          safeSetLoadingStatus(`Processing ${config.displayName}...`)
+          safeSetLoadingProgress(100)
           
           const model = gltf.scene
           
@@ -323,6 +380,9 @@ export default function Vanilla3DViewer({
               console.log('  - Material:', mesh.material?.name, mesh.material?.type)
             }
           })
+          
+          // Mount check before applying transformations
+          if (!mounted.current) return
           
           // Apply dynamic positioning
           model.scale.set(config.scale.x, config.scale.y, config.scale.z)
@@ -341,34 +401,55 @@ export default function Vanilla3DViewer({
                 // Apply color based on material/mesh name using config
                 const materialName = (material.name || '').toLowerCase()
                 const meshName = (child.name || '').toLowerCase()
+                const combinedName = `${materialName} ${meshName}`.trim()
                 
-                let targetColor = colors.primary // default
+                console.log(`🎨 Processing material: "${materialName}" on mesh: "${meshName}"`)
                 
-                // Use material mapping from config
-                for (const [materialKey, materialConfig] of Object.entries(config.materials)) {
-                  if (materialName.includes(materialKey.toLowerCase()) || 
-                      meshName.includes(materialKey.toLowerCase())) {
-                    targetColor = colors[materialConfig.colorTarget]
-                    console.log(`🎨 Applying ${materialConfig.colorTarget} color to ${materialKey}:`, targetColor)
-                    break
+                // Match material names to color targets based on the configuration
+                if (config.materials) {
+                  for (const [materialKey, materialConfig] of Object.entries(config.materials)) {
+                    const keyLower = materialKey.toLowerCase()
+                    
+                    if (combinedName.includes(keyLower) || 
+                        materialName.includes(keyLower) || 
+                        meshName.includes(keyLower)) {
+                      
+                      console.log(`✅ Material "${materialName}" matched config "${materialKey}"`)
+                      
+                      // Apply the appropriate color based on colorTarget
+                      let targetColor = colors.primary // default
+                      if (materialConfig.colorTarget === 'secondary') {
+                        targetColor = colors.secondary
+                      } else if (materialConfig.colorTarget === 'accent') {
+                        targetColor = colors.accent
+                      }
+                      
+                      newMaterial.color = new THREE.Color(targetColor)
+                      console.log(`🎨 Applied ${materialConfig.colorTarget} color ${targetColor} to ${materialName}`)
+                      break
+                    }
                   }
                 }
                 
-                newMaterial.color = new THREE.Color(targetColor)
                 child.material = newMaterial
               }
             }
           })
           
+          // Mount check before adding to scene
+          if (!mounted.current) return
+          
           scene.add(model)
           modelRef.current = model
           
-          setIsLoaded(true)
-          setLoadingStatus(`${config.displayName} loaded successfully!`)
+          safeSetIsLoaded(true)
+          safeSetLoadingStatus(`${config.displayName} loaded successfully!`)
           
-          // Animation loop
+          // Animation loop with mount check
           const animate = () => {
-            if (!mounted.current) return
+            if (!mounted.current || !rendererRef.current || !sceneRef.current) {
+              return
+            }
             
             animationId.current = requestAnimationFrame(animate)
             
@@ -393,8 +474,8 @@ export default function Vanilla3DViewer({
             const loadedMB = (loaded / (1024 * 1024)).toFixed(1)
             const totalMB = (total / (1024 * 1024)).toFixed(1)
             
-            setLoadingProgress(percent)
-            setLoadingStatus(`Loading ${config.displayName}: ${percent}% (${loadedMB}/${totalMB} MB)`)
+            safeSetLoadingProgress(percent)
+            safeSetLoadingStatus(`Loading ${config.displayName}: ${percent}% (${loadedMB}/${totalMB} MB)`)
             console.log(`📦 Loading progress: ${percent}% - ${loadedMB}MB/${totalMB}MB`)
             
             // Additional feedback for large files
@@ -402,7 +483,7 @@ export default function Vanilla3DViewer({
               console.log(`📋 Large file detected (${config.fileSize}), please wait...`)
             }
           } else {
-            setLoadingStatus(`Downloading ${config.displayName}...`)
+            safeSetLoadingStatus(`Downloading ${config.displayName}...`)
             console.log('📦 Loading progress: calculating...')
           }
         },
@@ -419,12 +500,12 @@ export default function Vanilla3DViewer({
             enhancedMessage += `\n\nThis may be due to large file size (${config.fileSize}). Please check your internet connection and try again.`
           }
           
-          setLoadError(enhancedMessage)
-          setLoadingProgress(0)
+          safeSetLoadError(enhancedMessage)
+          safeSetLoadingProgress(0)
         }
       )
       
-      // Handle window resize
+      // Handle window resize with mount check
       const handleResize = () => {
         if (!mounted.current || !canvasRef.current || !camera || !renderer) return
         
@@ -438,12 +519,63 @@ export default function Vanilla3DViewer({
     } catch (error) {
       console.error('❌ Three.js initialization failed:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setLoadError(`Initialization failed: ${errorMessage}`)
+      if (mounted.current) {
+        safeSetLoadError(`Initialization failed: ${errorMessage}`)
+      }
     }
-  }
+  }, [modelName, autoRotate, showControls, safeSetLoadingStatus, safeSetLoadingProgress, safeSetIsLoaded, safeSetLoadError, safeSetLoadedPath, findWorkingModelPath])
+
+  // Initialize Three.js when component mounts
+  useEffect(() => {
+    if (!mounted.current) return
+    
+    console.log('🚀 USEEFFECT INITIALIZATION - Starting GLB loading process')
+    
+    const initializeViewer = async () => {
+      // Wait for canvas to be ready
+      const waitForCanvas = () => {
+        return new Promise<void>((resolve, reject) => {
+          const checkCanvas = (attempt: number = 1) => {
+            if (!mounted.current) {
+              reject(new Error('Component unmounted'))
+              return
+            }
+            
+            const canvas = canvasRef.current || document.querySelector('canvas')
+            
+            if (canvas) {
+              console.log('✅ Canvas ready! Starting Three.js initialization')
+              resolve()
+            } else if (attempt < 10) {
+              console.log(`❌ Canvas not ready on attempt ${attempt}, retrying...`)
+              setTimeout(() => checkCanvas(attempt + 1), 100)
+            } else {
+              reject(new Error('Canvas element not ready after 10 attempts'))
+            }
+          }
+          
+          checkCanvas()
+        })
+      }
+      
+      try {
+        await waitForCanvas()
+        if (!mounted.current) return
+        await initThreeJS()
+      } catch (error) {
+        console.error('❌ Viewer initialization failed:', error)
+        if (mounted.current) {
+          safeSetLoadError(`Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      }
+    }
+
+    initializeViewer()
+  }, [modelName, safeSetLoadError, initThreeJS]) // Re-run when model changes
 
   // Color change handler with dynamic config
   const handleColorChange = useCallback(async (newColors: Colors) => {
+    console.log('🔄 Handling color change:', newColors)
     if (!modelRef.current || !sceneRef.current) return
     
     let config
@@ -464,16 +596,24 @@ export default function Vanilla3DViewer({
         const materialName = (child.material.name || '').toLowerCase()
         const meshName = (child.name || '').toLowerCase()
         
+        console.log(`🔍 Material found - Name: "${materialName}", Mesh: "${meshName}"`)
+        
         let targetColor = newColors.primary // default
         
         // Use material mapping from config
+        let mapped = false
         for (const [materialKey, materialConfig] of Object.entries(config.materials)) {
           if (materialName.includes(materialKey.toLowerCase()) || 
               meshName.includes(materialKey.toLowerCase())) {
             targetColor = newColors[materialConfig.colorTarget]
             console.log(`🎨 Updating ${materialKey} to ${materialConfig.colorTarget}:`, targetColor)
+            mapped = true
             break
           }
+        }
+        
+        if (!mapped) {
+          console.log(`🎨 No mapping found, using primary color for material "${materialName}", mesh "${meshName}"`)
         }
         
         newMaterial.color = new THREE.Color(targetColor)
@@ -509,42 +649,26 @@ export default function Vanilla3DViewer({
 
   // React to color changes
   useEffect(() => {
+    console.log('🎨 Vanilla3DViewer colors changed:', colors, 'isLoaded:', isLoaded)
+    
+    // Always store the latest colors
+    pendingColorsRef.current = colors
+    
     if (isLoaded) {
       handleColorChange(colors)
+    } else {
+      console.log('🟡 Model not loaded yet, storing colors for later application')
     }
   }, [colors, isLoaded, handleColorChange])
 
-  // Handle model change - reset and reload when modelName changes
-  const currentModelName = useRef(modelName)
-  if (currentModelName.current !== modelName) {
-    console.log(`🔄 Model changed from ${currentModelName.current} to ${modelName}, reinitializing...`)
-    currentModelName.current = modelName
-    hasInitialized.current = false
-    setIsLoaded(false)
-    setLoadError(null)
-    setLoadingStatus('Model changed, reinitializing...')
-    setLoadedPath('')
-    
-    // Cleanup existing scene
-    if (rendererRef.current) {
-      try {
-        rendererRef.current.dispose()
-        console.log('✅ Renderer disposed for model change')
-      } catch (e) {
-        console.warn('⚠️ Error disposing renderer:', e)
-      }
+  // Apply pending colors when model loads
+  useEffect(() => {
+    if (isLoaded && pendingColorsRef.current) {
+      console.log('✅ Model loaded, applying pending colors:', pendingColorsRef.current)
+      handleColorChange(pendingColorsRef.current)
+      // Don't clear pending colors to maintain state for subsequent changes
     }
-    
-    // Re-trigger initialization after cleanup
-    if (canvasRef.current) {
-      console.log('🔄 Re-triggering initialization for new model')
-      setTimeout(() => {
-        if (mounted.current && canvasRef.current) {
-          initThreeJS()
-        }
-      }, 100)
-    }
-  }
+  }, [isLoaded, handleColorChange])
 
   return (
     <div className={`relative w-full h-full min-h-[400px] bg-gradient-to-br from-slate-900 to-slate-800 rounded-lg overflow-hidden ${className}`}>
@@ -602,7 +726,8 @@ export default function Vanilla3DViewer({
               onClick={() => {
                 setLoadError(null)
                 setIsLoaded(false)
-                hasInitialized.current = false
+                // Trigger re-initialization by changing a dependency
+                safeSetLoadingStatus('Retrying...')
               }}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
             >
@@ -632,13 +757,13 @@ export default function Vanilla3DViewer({
       </div>
       
       {/* Controls info */}
-      {showControls && (
+      {/* {showControls && (
         <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-sm text-white/70 text-xs px-3 py-2 rounded-lg border border-white/10">
           <div>🎮 OrbitControls</div>
           <div>🔄 Auto Rotate</div>
           <div>🎨 Live Colors</div>
         </div>
-      )}
+      )} */}
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { eq, and } from 'drizzle-orm'
 // GET /api/collections/[id] - Get specific collection
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -16,7 +16,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const collectionId = params.id
+    const { id } = await params
+    const collectionId = id
 
     // Get user from database
     const [user] = await db
@@ -58,7 +59,7 @@ export async function GET(
 // PUT /api/collections/[id] - Update collection
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -66,7 +67,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const collectionId = params.id
+    const { id } = await params
+    const collectionId = id
     const body = await request.json()
     const { name, colors, size, notes, tags, isPublic } = body
 
@@ -118,7 +120,7 @@ export async function PUT(
 // DELETE /api/collections/[id] - Delete collection
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -126,7 +128,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const collectionId = params.id
+    const { id } = await params
+    const collectionId = id
 
     // Get user from database
     const [user] = await db

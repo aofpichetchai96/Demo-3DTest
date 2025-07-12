@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ThemeToggleDetailed } from '@/components/theme-toggle'
+import LivePreview from '@/components/LivePreview'
 
 interface ModelConfig {
   id: string
@@ -244,43 +245,6 @@ export default function ModelConfigsPage() {
     }
   }
 
-  const seedDatabase = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const response = await fetch('/api/seed-models', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(`API Error: ${errorData.error || response.statusText}`)
-      }
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        console.log('✅ Database seeded successfully:', result)
-        // Reload configs after seeding
-        await loadConfigs()
-        alert(`Successfully seeded ${result.models.length} model configurations!`)
-      } else {
-        throw new Error(result.details || result.error)
-      }
-    } catch (err) {
-      console.error('❌ Error seeding database:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      setError(`Failed to seed database: ${errorMessage}`)
-      alert(`Seeding failed: ${errorMessage}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -320,13 +284,6 @@ export default function ModelConfigsPage() {
               <p className="text-muted-foreground">Admin-only access to edit model position, camera, and zoom defaults</p>
             </div>
             <div className="flex items-center space-x-4">
-              <button
-                onClick={seedDatabase}
-                disabled={loading}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-muted disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-              >
-                {loading ? 'Seeding...' : 'Seed Models'}
-              </button>
               <ThemeToggleDetailed />
             </div>
           </div>
@@ -338,8 +295,8 @@ export default function ModelConfigsPage() {
           )}
         </header>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Model List */}
+        <div className="grid lg:grid-cols-5 gap-6">
+          {/* Model List - Reduced width */}
           <div className="lg:col-span-1">
             <h2 className="text-xl font-semibold mb-4">Models ({configs.length})</h2>
             
@@ -347,16 +304,8 @@ export default function ModelConfigsPage() {
               <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-6 text-center">
                 <h3 className="text-lg font-bold text-yellow-600 dark:text-yellow-400 mb-2">No Models Found</h3>
                 <p className="text-yellow-700 dark:text-yellow-300 mb-4">
-                  No model configurations found in the database. 
-                  Try seeding the database with sample data.
+                  No model configurations found in the database.
                 </p>
-                <button
-                  onClick={seedDatabase}
-                  disabled={loading}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-muted disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                >
-                  {loading ? 'Seeding...' : 'Seed Sample Data'}
-                </button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -397,7 +346,7 @@ export default function ModelConfigsPage() {
             )}
           </div>
 
-          {/* Configuration Editor */}
+          {/* Configuration Editor - Same width */}
           <div className="lg:col-span-2">
             {selectedModel && editingConfig ? (
               <div className="bg-card border border-border rounded-lg p-6">
@@ -600,16 +549,6 @@ export default function ModelConfigsPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Preview Values */}
-                <div className="mt-6 p-4 bg-muted rounded-lg">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Current Values Preview</h4>
-                  <div className="text-xs font-mono text-muted-foreground overflow-x-auto">
-                    <pre className="whitespace-pre-wrap">
-                      {JSON.stringify(editingConfig, null, 2)}
-                    </pre>
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="bg-card border border-border rounded-lg p-12 text-center">
@@ -617,6 +556,14 @@ export default function ModelConfigsPage() {
                 <p className="text-muted-foreground">Choose a model from the list to edit its position, camera, and zoom default settings</p>
               </div>
             )}
+          </div>
+
+          {/* Live Preview - Expanded width */}
+          <div className="lg:col-span-2">
+            <LivePreview 
+              modelName={selectedModel || undefined} 
+              config={editingConfig}
+            />
           </div>
         </div>
 

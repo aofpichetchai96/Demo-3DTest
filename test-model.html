@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Model Loading</title>
+</head>
+<body>
+    <h1>Test Model Loading</h1>
+    <script>
+        // Test if model file is accessible
+        fetch('/models/scanned_adidas_sports_shoe.glb')
+            .then(response => {
+                console.log('Model fetch response:', response);
+                console.log('Status:', response.status);
+                console.log('OK:', response.ok);
+                console.log('Headers:', [...response.headers.entries()]);
+                return response.blob();
+            })
+            .then(blob => {
+                console.log('Model blob size:', blob.size, 'bytes');
+                console.log('Model blob type:', blob.type);
+            })
+            .catch(error => {
+                console.error('Model fetch error:', error);
+            });
+    </script>
+</body>
+</html>

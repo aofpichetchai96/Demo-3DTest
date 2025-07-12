@@ -1,8 +1,7 @@
 // Model Configuration Database
 // เก็บข้อมูล position, zoom, rotation และ lighting สำหรับแต่ละโมเดล
 
-// Remove import to avoid circular dependency
-// import { getCachedModelConfig, getAllDynamicModelConfigs, getDynamicModelPaths } from './modelConfigService'
+// Use API calls instead of direct database import to avoid client-side issues
 import type { ModelConfig, ModelDisplayInfo } from '@/types/modelConfig'
 
 // Re-export types
@@ -79,6 +78,7 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
       }
     },
     materials: {
+      // Original mappings
       sole: {
         colorTarget: 'secondary',
         description: 'รองเท้าส้นและพื้นรองเท้า'
@@ -94,6 +94,37 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
       lace: {
         colorTarget: 'accent',
         description: 'เชือกผูกรองเท้า'
+      },
+      // Additional common material names
+      material: {
+        colorTarget: 'primary',
+        description: 'วัสดุหลัก'
+      },
+      textured: {
+        colorTarget: 'primary',
+        description: 'วัสดุที่มีลายผิว'
+      },
+      metalstandardmaterial: {
+        colorTarget: 'secondary',
+        description: 'วัสดุโลหะมาตรฐาน'
+      },
+      meshstandardmaterial: {
+        colorTarget: 'primary',
+        description: 'วัสดุ mesh มาตรฐาน'
+      },
+      // Fallback patterns
+      mesh: {
+        colorTarget: 'primary',
+        description: 'เมช'
+      },
+      object: {
+        colorTarget: 'primary',
+        description: 'วัตถุ'
+      }
+      ,
+      object_3: {
+        colorTarget: 'primary',
+        description: 'Mesh object_3 (fallback)'
       }
     },
     loadingTimeout: 45,
@@ -109,40 +140,40 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
     fileSize: '~15MB',
     position: {
       x: 0,
-      y: 0.2,
+      y: 0,
       z: 0
     },
     rotation: {
       x: 0,
-      y: Math.PI * 0.3, // 54 degrees - slightly different angle
+      y: Math.PI * 0.25, // 45 degrees - same as adidas for consistency
       z: 0
     },
     scale: {
-      x: 5,
-      y: 5,
-      z: 5
+      x: 2.5,
+      y: 2.5,
+      z: 2.5
     },
     camera: {
       position: {
-        x: 3.2,
-        y: 1.8,
-        z: 4.5
+        x: 0,
+        y: 3,
+        z: 8
       },
       target: {
         x: 0,
         y: 0,
         z: 0
       },
-      fov: 40,
+      fov: 60,
       near: 0.1,
       far: 1000
     },
     controls: {
-      minDistance: 3,
-      maxDistance: 7.5,
-      autoRotateSpeed: 0.4,
+      minDistance: 4,
+      maxDistance: 15,
+      autoRotateSpeed: 0.5,
       enableDamping: true,
-      dampingFactor: 0.08
+      dampingFactor: 0.05
     },
     lighting: {
       ambient: {
@@ -170,6 +201,7 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
       }
     },
     materials: {
+      // Original mappings
       sole: {
         colorTarget: 'secondary',
         description: 'ส้นรองเท้าและพื้น'
@@ -185,6 +217,32 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
       eyelets: {
         colorTarget: 'accent',
         description: 'รูเชือกและรายละเอียด'
+      },
+      // Additional common material names
+      material: {
+        colorTarget: 'primary',
+        description: 'วัสดุหลัก'
+      },
+      textured: {
+        colorTarget: 'primary',
+        description: 'วัสดุที่มีลายผิว'
+      },
+      metalstandardmaterial: {
+        colorTarget: 'secondary',
+        description: 'วัสดุโลหะมาตรฐาน'
+      },
+      meshstandardmaterial: {
+        colorTarget: 'primary',
+        description: 'วัสดุ mesh มาตรฐาน'
+      },
+      // Fallback patterns
+      mesh: {
+        colorTarget: 'primary',
+        description: 'เมช'
+      },
+      object: {
+        colorTarget: 'primary',
+        description: 'วัตถุ'
       }
     },
     loadingTimeout: 35,
@@ -193,31 +251,81 @@ export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   }
 }
 
-// Helper functions - updated to fallback to static config to avoid circular dependency
+// Helper functions - using API calls to avoid client-side database issues
 export async function getModelConfig(modelName: string): Promise<ModelConfig> {
-  // Fallback to static config since we removed dynamic loading to avoid circular dependency
+  try {
+    // Try to get from API first (only in browser environment)
+    if (typeof window !== 'undefined') {
+      const response = await fetch(`/api/model-configs/${modelName}`)
+      if (response.ok) {
+        const dbConfig = await response.json()
+        console.log(`✅ Using DB config for ${modelName}:`, dbConfig)
+        return dbConfig
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️ Could not load DB config for ${modelName}, falling back to static:`, error)
+  }
+  
+  // Fallback to static config
   const config = MODEL_CONFIGS[modelName]
   if (!config) {
     throw new Error(`Model configuration not found for: ${modelName}`)
   }
+  console.log(`📁 Using static config for ${modelName}:`, config)
   return config
 }
 
 export async function getAllModelConfigs(): Promise<ModelConfig[]> {
-  // Return static configs to avoid circular dependency
+  try {
+    // Try to get from API first (only in browser environment)
+    if (typeof window !== 'undefined') {
+      const response = await fetch('/api/model-configs')
+      if (response.ok) {
+        const dbConfigs = await response.json()
+        if (dbConfigs && dbConfigs.length > 0) {
+          console.log(`✅ Using ${dbConfigs.length} DB configs`)
+          return dbConfigs
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️ Could not load DB configs, falling back to static:`, error)
+  }
+  
+  // Return static configs as fallback
+  console.log(`📁 Using ${Object.values(MODEL_CONFIGS).length} static configs`)
   return Object.values(MODEL_CONFIGS)
 }
 
 export async function getModelPaths(modelName: string): Promise<string[]> {
-  // Return static config paths to avoid circular dependency
+  try {
+    // Try to get from API first (only in browser environment)
+    if (typeof window !== 'undefined') {
+      const response = await fetch(`/api/model-configs/${modelName}/paths`)
+      if (response.ok) {
+        const dbPaths = await response.json()
+        if (dbPaths && dbPaths.length > 0) {
+          console.log(`✅ Using DB paths for ${modelName}:`, dbPaths)
+          return dbPaths
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️ Could not load DB paths for ${modelName}, falling back to static:`, error)
+  }
+  
+  // Return static config paths as fallback
   const config = MODEL_CONFIGS[modelName]
   if (!config) {
     throw new Error(`Model configuration not found for: ${modelName}`)
   }
-  return [
+  const staticPaths = [
     config.filePath,
     config.filePath // Same path as backup
   ]
+  console.log(`📁 Using static paths for ${modelName}:`, staticPaths)
+  return staticPaths
 }
 
 export async function getModelDisplayInfo(modelName: string) {

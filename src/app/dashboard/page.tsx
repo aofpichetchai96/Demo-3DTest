@@ -5,8 +5,9 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Plus, Edit, Trash2, LogOut, User, Palette, Crown } from "lucide-react"
-import SafeShoeModel3D from "@/components/SafeShoeModel3D"
+import Vanilla3DViewer from "@/components/Vanilla3DViewer"
 import { getSavedDesigns, initializeMockData, type SavedDesign } from "@/lib/collections"
+import { useCallback } from "react"
 // import { collectionsApi } from '@/lib/api'
 
 // Recent designs from localStorage
@@ -46,6 +47,25 @@ export default function DashboardPage() {
   const [recentDesigns, setRecentDesigns] = useState<SavedDesign[]>(mockRecentDesigns)
   const [selectedPreset, setSelectedPreset] = useState(0) // For color preset showcase
   const [selectedModel, setSelectedModel] = useState<'adidas' | 'vans'>('adidas') // For model selection
+  const [modelConfigs, setModelConfigs] = useState<Record<string, any>>({})
+
+  // Fetch model configs from API
+  useEffect(() => {
+    async function fetchConfigs() {
+      try {
+        const res = await fetch('/api/model-configs')
+        if (res.ok) {
+          const configs = await res.json()
+          // Map by id for easy access
+          const byId = Object.fromEntries(configs.map((c: any) => [c.id, c]))
+          setModelConfigs(byId)
+        }
+      } catch (e) {
+        console.error('Failed to fetch model configs:', e)
+      }
+    }
+    fetchConfigs()
+  }, [])
   
   // Debug logging
   console.log('🏠 Dashboard render:', {
@@ -193,26 +213,28 @@ export default function DashboardPage() {
               <div className="mb-6">
                 <h4 className="text-sm font-medium mb-3 text-blue-100">เลือกรุ่นรองเท้า:</h4>
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => setSelectedModel('adidas')}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-                      selectedModel === 'adidas'
-                        ? 'bg-white/20 border border-white/40 scale-105 shadow-lg'
-                        : 'bg-white/10 hover:bg-white/15 hover:scale-102'
-                    }`}
-                  >
-                    <span className="text-sm">🏃‍♂️ Adidas Sports</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedModel('vans')}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-                      selectedModel === 'vans'
-                        ? 'bg-white/20 border border-white/40 scale-105 shadow-lg'
-                        : 'bg-white/10 hover:bg-white/15 hover:scale-102'
-                    }`}
-                  >
-                    <span className="text-sm">🛹 Vans Classic</span>
-                  </button>
+                  {['adidas', 'vans'].map((id) => (
+                    <button
+                      key={id}
+                      onClick={() => setSelectedModel(id as 'adidas' | 'vans')}
+                      className={`flex flex-col items-start px-4 py-2 rounded-lg transition-all duration-300 min-w-[120px] ${
+                        selectedModel === id
+                          ? 'bg-white/20 border border-white/40 scale-105 shadow-lg'
+                          : 'bg-white/10 hover:bg-white/15 hover:scale-102'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold flex items-center gap-1">
+                        {id === 'adidas' ? '🏃‍♂️' : '🛹'}
+                        {modelConfigs[id]?.displayName || (id === 'adidas' ? 'Adidas Sports' : 'Vans Classic')}
+                      </span>
+                      <span className="text-xs opacity-70 mt-1">
+                        {modelConfigs[id]?.description || (id === 'adidas' ? 'รองเท้ากีฬาสแกน 3D' : 'รองเท้าแบบคลาสสิค')}
+                      </span>
+                      <span className="text-xs opacity-50 mt-1">
+                        {modelConfigs[id]?.fileSize ? `ไฟล์ GLB | ${modelConfigs[id].fileSize}` : ''}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
               
@@ -223,7 +245,10 @@ export default function DashboardPage() {
                   {colorPresets.map((preset, index) => (
                     <button
                       key={index}
-                      onClick={() => setSelectedPreset(index)}
+                      onClick={() => {
+                        // console.log('🎨 Color preset clicked:', index, preset.name, preset.colors)
+                        setSelectedPreset(index)
+                      }}
                       className={`flex flex-col items-center p-2 rounded-lg transition-all duration-300 ${
                         selectedPreset === index 
                           ? 'bg-white/20 border border-white/40 scale-105 shadow-lg' 
@@ -264,17 +289,18 @@ export default function DashboardPage() {
             <div className="relative">
               <div className="h-96 lg:h-[500px] bg-white/10 rounded-xl overflow-hidden backdrop-blur-sm border border-white/20 shadow-2xl">
                 {/* Debug info */}
-                <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded z-10">
+                {/* <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded z-10">
                   Model: {selectedModel} | Preset: {selectedPreset}
-                </div>
+                </div> */}
                 
                 {/* Force re-render only when model changes, not preset */}
-                <SafeShoeModel3D
-                  key={`dashboard-hero-${selectedModel}`}
+                <Vanilla3DViewer
+                  key="dashboard-hero-viewer"
                   colors={colorPresets[selectedPreset].colors}
                   autoRotate={true}
-                  showControls={false}
+                  showControls={true}
                   modelName={selectedModel}
+                  className="w-full h-full"
                 />
                 
                 {/* Color preset indicator ที่สวยงามขึ้น */}
@@ -309,9 +335,9 @@ export default function DashboardPage() {
                 </div>
                 
                 {/* Loading indicator */}
-                <div className="absolute bottom-4 right-4 text-xs text-white/70 bg-white/10 px-2 py-1 rounded backdrop-blur-sm">
+                {/* <div className="absolute bottom-4 right-4 text-xs text-white/70 bg-white/10 px-2 py-1 rounded backdrop-blur-sm">
                   GLB Model
-                </div>
+                </div> */}
               </div>
               
               {/* Decorative elements */}
@@ -357,12 +383,13 @@ export default function DashboardPage() {
                       className="bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-colors group"
                     >
                       <div className="aspect-square bg-gray-700 rounded-lg mb-3">
-                        <SafeShoeModel3D
-                          key={`dashboard-recent-${design.id}-${selectedModel}`}
+                        <Vanilla3DViewer
+                          key={`recent-${design.id}`}
                           colors={design.colors}
                           autoRotate={true}
                           showControls={false}
                           modelName={selectedModel}
+                          className="w-full h-full"
                         />
                       </div>
                       
@@ -419,71 +446,50 @@ export default function DashboardPage() {
             <div className="bg-white/5 rounded-xl p-6 border border-white/10">
               <h3 className="text-lg font-semibold text-white mb-4">เลือกรุ่นรองเท้า</h3>
               <div className="grid grid-cols-1 gap-3">
-                <button
-                  onClick={() => setSelectedModel('adidas')}
-                  className={`p-4 border rounded-lg text-left transition-all relative overflow-hidden ${
-                    selectedModel === 'adidas'
-                      ? 'border-blue-500 bg-blue-500/20 text-blue-300 shadow-lg shadow-blue-500/25'
-                      : 'border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Adidas Sports</div>
-                      <div className="text-sm opacity-75">รองเท้ากีฬาสแกน 3D</div>
-                      <div className="text-xs mt-1 opacity-60">ไฟล์ GLB | ~19MB</div>
-                    </div>
-                    {selectedModel === 'adidas' && (
-                      <div className="text-blue-400">
-                        <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                {['adidas', 'vans'].map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => setSelectedModel(id as 'adidas' | 'vans')}
+                    className={`p-4 border rounded-lg text-left transition-all relative overflow-hidden ${
+                      selectedModel === id
+                        ? 'border-blue-500 bg-blue-500/20 text-blue-300 shadow-lg shadow-blue-500/25'
+                        : 'border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{modelConfigs[id]?.displayName || (id === 'adidas' ? 'Adidas Sports' : 'Vans Classic')}</div>
+                        <div className="text-sm opacity-75">{modelConfigs[id]?.description || (id === 'adidas' ? 'รองเท้ากีฬาสแกน 3D' : 'รองเท้าแบบคลาสสิค')}</div>
+                        <div className="text-xs mt-1 opacity-60">{modelConfigs[id]?.fileSize ? `ไฟล์ GLB | ${modelConfigs[id].fileSize}` : ''}</div>
                       </div>
-                    )}
-                  </div>
-                </button>
-                <button
-                  onClick={() => setSelectedModel('vans')}
-                  className={`p-4 border rounded-lg text-left transition-all relative overflow-hidden ${
-                    selectedModel === 'vans'
-                      ? 'border-blue-500 bg-blue-500/20 text-blue-300 shadow-lg shadow-blue-500/25'
-                      : 'border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Vans Classic</div>
-                      <div className="text-sm opacity-75">รองเท้าแบบคลาสสิค</div>
-                      <div className="text-xs mt-1 opacity-60">ไฟล์ GLB | ~15MB</div>
+                      {selectedModel === id && (
+                        <div className="text-blue-400">
+                          <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                        </div>
+                      )}
                     </div>
-                    {selectedModel === 'vans' && (
-                      <div className="text-blue-400">
-                        <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
-                      </div>
-                    )}
-                  </div>
-                </button>
+                  </button>
+                ))}
               </div>
               
               {/* Model Info */}
-              <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                <div className="text-sm text-gray-300">
-                  <div className="font-medium mb-1">
-                    {selectedModel === 'adidas' ? 'Adidas Sports Shoe' : 'Vans Classic Shoe'}
-                  </div>
-                  <div className="text-xs text-gray-400 space-y-1">
-                    <div>• พื้นผิว: สามารถปรับสีได้</div>
-                    <div>• โมเดล: {selectedModel === 'adidas' ? 'สแกน 3D จริง' : 'โมเดลคลาสสิค'}</div>
-                    <div>• รองรับ: สีหลัก, สีรอง, สีเด่น</div>
-                    <div>• ขนาดไฟล์: รองรับไฟล์ขนาดใหญ่ (ถึง 30MB)</div>
-                  </div>
+                <div className="mt-4 p-3 bg-gradient-to-r from-blue-700/40 to-purple-700/40 rounded-xl border border-blue-600/30 shadow-lg">
+                <Link
+                  href="/collections"
+                  className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-md hover:scale-105"
+                >
+                  <Palette size={20} />
+                  <span>จัดการคอลเล็กชั่น</span>
+                </Link>
                 </div>
-              </div>
+              
             </div>
 
             {/* Model Showcase */}
        
 
             {/* Quick Actions */}
-            <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+            {/* <div className="bg-white/5 rounded-xl p-6 border border-white/10">
               <h3 className="text-lg font-semibold text-white mb-4">เมนูด่วน</h3>
               
               <div className="space-y-3">
@@ -502,7 +508,7 @@ export default function DashboardPage() {
                   <span>ออกแบบใหม่</span>
                 </button>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -526,8 +532,8 @@ export default function DashboardPage() {
                 <h4 className="font-semibold mb-2">Content Moderation</h4>
                 <ul className="text-sm text-gray-300 space-y-1">
                   <li>• Review public collections</li>
-                  <li>• Manage featured designs</li>
-                  <li>• System analytics</li>
+                  <li>• Review public orders</li>
+                  <li>• System 3D configuration</li>
                 </ul>
               </div>
             </div>
